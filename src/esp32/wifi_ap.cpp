@@ -3,8 +3,13 @@
 #include "log.h"
 #include <esp_wifi.h>
 
+// API interna do ESP-IDF (não declarada nos headers públicos) que fixa a taxa de transmissão
+extern "C" esp_err_t esp_wifi_internal_set_fix_rate(wifi_interface_t ifx, bool en, wifi_phy_rate_t rate);
+
 namespace wifi_ap {
 namespace {
+
+int rateMode = 0;
 
 void onWifiEvent(arduino_event_id_t event, arduino_event_info_t info) {
   if (event == ARDUINO_EVENT_WIFI_AP_STACONNECTED) {
@@ -45,6 +50,17 @@ void rampTxPower() {
 }
 
 int stations() { return WiFi.softAPgetStationNum(); }
+
+void setFixedRate(int mode) {
+  if (mode == rateMode || mode < 0 || mode > 2) return;
+  esp_err_t err;
+  if (mode == 0) err = esp_wifi_internal_set_fix_rate(WIFI_IF_AP, false, WIFI_PHY_RATE_1M_L);
+  else err = esp_wifi_internal_set_fix_rate(WIFI_IF_AP, true, mode == 1 ? WIFI_PHY_RATE_54M : WIFI_PHY_RATE_MCS7_SGI);
+  LOG("WIFI", "taxa de transmissao %d (0=auto 1=54M 2=MCS7): %s", mode, esp_err_to_name(err));
+  if (err == ESP_OK) rateMode = mode;
+}
+
+int fixedRate() { return rateMode; }
 
 float txPowerDbm() {
   int8_t power = 0;

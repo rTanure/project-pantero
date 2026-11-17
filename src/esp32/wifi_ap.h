@@ -11,4 +11,9 @@ void rampTxPower();
 int stations();      // dispositivos conectados ao AP
 float txPowerDbm();  // potência máxima de TX aceita pelo driver
 
+// Taxa de transmissão do AP: 0 = automática (padrão), 1 = fixa em 54 Mbps (OFDM), 2 = fixa em MCS7 (72 Mbps).
+// Taxa fixa evita que a adaptação automática caia para taxas lentas (jitter), mas piora com sinal fraco.
+void setFixedRate(int mode);
+int fixedRate();
+
 }  // namespace wifi_ap

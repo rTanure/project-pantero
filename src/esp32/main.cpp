@@ -1,28 +1,24 @@
-// Pantero: robô controlado por uma aplicação React servida pelo próprio ESP32.
+// Pantero: robô controlado por um programa Python no PC (pasta pc/), que se conecta ao Wi-Fi do ESP32.
 //
-//   Wi-Fi (AP "Pantero") ── web_server  serve o app React (LittleFS)
-//                        ├─ control_ws  /ws   comandos do app -> robot_link -> Arduino Uno (UART)
-//                        └─ video_ws    /wsv  quadros JPEG da câmera -> app
+//   Wi-Fi (AP "Pantero") ── udp_link   UDP: comandos do PC -> robot_link -> Arduino Uno (UART)
+//                                       e avisos de reset de volta ao PC
+//                        └─ video_udp  UDP: quadros JPEG da câmera -> PC
 // display: painel OLED com o status do robô (I2C, pinos 32/33)
 //
-// Núcleo 0: Wi-Fi, pilha TCP/IP, driver da câmera e servidor web. Núcleo 1: captura e envio do vídeo.
+// Núcleo 0: Wi-Fi, pilha TCP/IP e driver da câmera. Núcleo 1: captura e envio do vídeo.
 #include <Arduino.h>
-#include <ESPAsyncWebServer.h>
 #include "camera.h"
 #include "config.h"
-#include "control_ws.h"
 #include "display.h"
 #include "log.h"
 #include "reset_info.h"
 #include "robot_link.h"
-#include "video_ws.h"
-#include "web_server.h"
+#include "udp_link.h"
+#include "video_udp.h"
 #include "wifi_ap.h"
 
-AsyncWebServer server(HTTP_PORT);
-
-// O Uno informou o motivo do reset dele: repassa a todos os apps conectados
-void onUnoReset(const char *message) { control_ws::broadcast(message); }
+// O Uno informou o motivo do reset dele: repassa ao PC conectado
+void onUnoReset(const char *message) { udp_link::sendText(message); }
 
 void logBootInfo() {
   LOG("BOOT", "Pantero iniciando | chip %s rev %d | %u MHz | flash %u KB | heap livre %u",
@@ -37,7 +33,6 @@ void setup() {
   logBootInfo();
   display::begin();
 
-  web_server::mountFilesystem();
   robot_link::begin(onUnoReset);
 
   // Partida escalonada: Wi-Fi com TX baixo, depois a câmera, depois a potência final do Wi-Fi
@@ -49,11 +44,8 @@ void setup() {
   delay(POWER_STEP_MS);
   wifi_ap::rampTxPower();
 
-  control_ws::begin(server);
-  if (cameraOk) video_ws::begin(server);
-  web_server::begin(server);
-  server.begin();
-  LOG("HTTP", "servidor iniciado na porta %u", HTTP_PORT);
+  udp_link::begin();
+  if (cameraOk) video_udp::begin();
 
   robot_link::requestResetInfo();  // pede ao Uno o motivo do último reset dele
 }
@@ -63,15 +55,13 @@ void heartbeat() {
   static unsigned long lastAt = 0;
   if (millis() - lastAt < HEARTBEAT_MS) return;
   lastAt = millis();
-  LOG("BEAT", "heap livre %u | min %u | wifi %d | controle %u | video %u", (unsigned)ESP.getFreeHeap(),
-      (unsigned)ESP.getMinFreeHeap(), wifi_ap::stations(), (unsigned)control_ws::clients(),
-      (unsigned)video_ws::clients());
+  LOG("BEAT", "heap livre %u | min %u | wifi %d | PC %s | video %.1f fps", (unsigned)ESP.getFreeHeap(),
+      (unsigned)ESP.getMinFreeHeap(), wifi_ap::stations(), udp_link::clientActive() ? "sim" : "nao",
+      video_udp::fps());
 }
 
 void loop() {
   robot_link::poll();
-  control_ws::cleanup();
-  video_ws::cleanup();
-  display::update();
+  udp_link::poll();
   heartbeat();
 }

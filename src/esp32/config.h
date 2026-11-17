@@ -41,6 +41,9 @@ constexpr unsigned long DISPLAY_REFRESH_MS = 500;
 constexpr unsigned long UNO_PING_MS = 5000;    // pergunta ao Uno se ele está vivo
 constexpr unsigned long UNO_ALIVE_MS = 12000;  // sem resposta por este tempo: considerado fora
 
-// ---- Servidor ----
-constexpr uint16_t HTTP_PORT = 80;
+// ---- Enlace UDP com o programa do PC ----
+constexpr uint16_t UDP_CONTROL_PORT = 4210;         // o PC envia "olá" e comandos para esta porta
+constexpr unsigned long CLIENT_TIMEOUT_MS = 3000;   // sem pacotes do PC por este tempo: cliente perdido
+constexpr size_t VIDEO_CHUNK_BYTES = 1400;          // dados de cada pacote UDP de vídeo (cabe no MTU)
+
 constexpr unsigned long HEARTBEAT_MS = 10000;  // intervalo do log de saúde (heap, clientes)

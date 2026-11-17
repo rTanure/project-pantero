@@ -3,11 +3,11 @@
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
 #include "config.h"
-#include "control_ws.h"
 #include "log.h"
 #include "reset_info.h"
 #include "robot_link.h"
-#include "video_ws.h"
+#include "udp_link.h"
+#include "video_udp.h"
 #include "wifi_ap.h"
 
 namespace display {
@@ -20,7 +20,6 @@ constexpr uint8_t ADDRESSES[] = {0x3C, 0x3D};  // endereços comuns do SSD1306
 Adafruit_SSD1306 oled(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 bool ready = false;
 bool cameraOk = false;
-unsigned long lastDrawAt = 0;
 
 bool respondsAt(uint8_t address) {
   Wire.beginTransmission(address);
@@ -71,13 +70,13 @@ void drawStatus() {
   // Conexões
   snprintf(v, sizeof(v), "%d", wifi_ap::stations());
   put(1, "WIFI", v);
-  put(2, "APP", control_ws::clients() > 0 ? "ON" : "OFF");
+  put(2, "PC", udp_link::clientActive() ? "ON" : "OFF");
   if (!cameraOk) {
     put(3, "VID", "FALHA");
-  } else if (video_ws::clients() == 0) {
+  } else if (!udp_link::clientActive()) {
     put(3, "VID", "parado");
   } else {
-    snprintf(v, sizeof(v), "%.0ffps", video_ws::fps());
+    snprintf(v, sizeof(v), "%.0ffps", video_udp::fps());
     put(3, "VID", v);
   }
   put(4, "UNO", robot_link::unoAlive() ? "OK" : "OFF");
@@ -108,6 +107,15 @@ void drawStatus() {
   put(15, "U", uno[0] ? uno : "-");
 
   oled.display();
+}
+
+// Redesenha periodicamente. O envio de 1 KB por I2C leva ~25 ms: numa task própria, de baixa
+// prioridade, ele não atrasa a leitura dos comandos nem o ping de controle.
+void displayTask(void *) {
+  for (;;) {
+    drawStatus();
+    vTaskDelay(pdMS_TO_TICKS(DISPLAY_REFRESH_MS));
+  }
 }
 
 }  // namespace
@@ -144,14 +152,9 @@ void begin() {
   oled.setTextColor(SSD1306_WHITE);
   put(2, "iniciando");
   oled.display();
+  xTaskCreatePinnedToCore(displayTask, "display", 4096, nullptr, 1, nullptr, 1);
 }
 
 void setCameraOk(bool ok) { cameraOk = ok; }
-
-void update() {
-  if (!ready || millis() - lastDrawAt < DISPLAY_REFRESH_MS) return;
-  lastDrawAt = millis();
-  drawStatus();
-}
 
 }  // namespace display

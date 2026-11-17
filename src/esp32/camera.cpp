@@ -28,7 +28,7 @@ constexpr framesize_t FRAME_SIZE = FRAMESIZE_QVGA;  // 320x240
 constexpr int JPEG_QUALITY = 15;                    // 10 (melhor) a 63 (pior)
 constexpr int XCLK_HZ = 20000000;
 
-camera_config_t buildConfig() {
+camera_config_t buildConfig(CameraMode mode) {
   camera_config_t c = {};
   c.ledc_channel = LEDC_CHANNEL_0;
   c.ledc_timer = LEDC_TIMER_0;
@@ -52,10 +52,16 @@ camera_config_t buildConfig() {
   c.pixel_format = PIXFORMAT_JPEG;
   c.frame_size = FRAME_SIZE;
   c.jpeg_quality = JPEG_QUALITY;
-  // Captura e transmissão alternadas: 1 buffer, e o driver só captura quando ele está livre. O video_ws
-  // segura o buffer enquanto transmite, então a câmera não captura durante o envio.
-  c.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-  c.fb_count = 1;
+  if (mode == CameraMode::Latest2) {
+    // 2 buffers: o driver captura sempre e entrega o quadro mais recente
+    c.grab_mode = CAMERA_GRAB_LATEST;
+    c.fb_count = 2;
+  } else {
+    // Captura e envio em sequência: 1 buffer, e o driver só captura quando ele está livre. O video_udp
+    // só devolve o buffer depois de enviar o quadro, então não há quadro antigo esperando em fila.
+    c.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+    c.fb_count = 1;
+  }
   c.fb_location = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;  // sem -DBOARD_HAS_PSRAM: DRAM
   if (!psramFound()) LOG("CAM", "sem PSRAM: frame buffer na DRAM");
   return c;
@@ -63,10 +69,11 @@ camera_config_t buildConfig() {
 
 }  // namespace
 
-bool cameraInit() {
-  camera_config_t config = buildConfig();
-  LOG("CAM", "iniciando: JPEG q=%d, xclk=%d Hz, 1 buffer (captura so com buffer livre), PSRAM livre=%u bytes",
-      JPEG_QUALITY, XCLK_HZ, (unsigned)ESP.getFreePsram());
+bool cameraInit(CameraMode mode) {
+  camera_config_t config = buildConfig(mode);
+  LOG("CAM", "iniciando: JPEG q=%d, xclk=%d Hz, modo %s (%d buffer), PSRAM livre=%u bytes", JPEG_QUALITY, XCLK_HZ,
+      mode == CameraMode::Latest2 ? "quadro mais recente" : "captura so com buffer livre", (int)config.fb_count,
+      (unsigned)ESP.getFreePsram());
 
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {

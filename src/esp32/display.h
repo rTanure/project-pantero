@@ -7,6 +7,6 @@ namespace display {
 
 void begin();                // inicia o I2C e mostra a tela de partida
 void setCameraOk(bool ok);   // resultado do init da câmera (mostrado na linha de vídeo)
-void update();               // chamar no loop(): redesenha a cada DISPLAY_REFRESH_MS
+// (a tela é redesenhada a cada DISPLAY_REFRESH_MS por uma task própria: o I2C não bloqueia o loop())
 
 }  // namespace display
