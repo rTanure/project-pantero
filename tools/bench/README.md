@@ -1,5 +1,9 @@
 # Banco de testes de vídeo e Wi-Fi
 
+> **Atenção:** o kit foi escrito para a versão do firmware com servidor web (HTTP/WebSocket). O firmware atual fala só
+> UDP e não tem `AsyncWebServer`, então o `firmware/` e o `bench.py` precisam de adaptação antes de serem reutilizados.
+> Os resultados e o relatório em PDF continuam válidos como medição daquela versão.
+
 Kit usado para medir o vídeo do ESP32 (fps, jitter, atraso, ping de controle). Não faz parte do firmware
 de produção.
 
