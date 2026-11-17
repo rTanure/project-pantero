@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { log } from './logger'
+import { log } from '../lib/logger'
 
 const SIZE = 180
 const KNOB = 64

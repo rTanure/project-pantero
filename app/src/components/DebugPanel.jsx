@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { clearLogs, useLogs } from './logger'
+import { clearLogs, useLogs } from '../lib/logger'
 
 // Painel de logs na tela (útil no celular, onde não há DevTools)
 export default function DebugPanel() {
