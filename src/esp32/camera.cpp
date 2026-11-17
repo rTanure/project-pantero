@@ -52,17 +52,12 @@ camera_config_t buildConfig() {
   c.pixel_format = PIXFORMAT_JPEG;
   c.frame_size = FRAME_SIZE;
   c.jpeg_quality = JPEG_QUALITY;
-  c.grab_mode = CAMERA_GRAB_LATEST;  // sempre o quadro mais recente
-
-  // Sem PSRAM (ou sem -DBOARD_HAS_PSRAM) o frame buffer precisa ficar na DRAM, com 1 buffer
-  if (psramFound()) {
-    c.fb_count = 2;
-    c.fb_location = CAMERA_FB_IN_PSRAM;
-  } else {
-    c.fb_count = 1;
-    c.fb_location = CAMERA_FB_IN_DRAM;
-    LOG("CAM", "sem PSRAM: usando DRAM com 1 frame buffer");
-  }
+  // Captura e transmissão alternadas: 1 buffer, e o driver só captura quando ele está livre. O video_ws
+  // segura o buffer enquanto transmite, então a câmera não captura durante o envio.
+  c.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+  c.fb_count = 1;
+  c.fb_location = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;  // sem -DBOARD_HAS_PSRAM: DRAM
+  if (!psramFound()) LOG("CAM", "sem PSRAM: frame buffer na DRAM");
   return c;
 }
 
@@ -70,8 +65,8 @@ camera_config_t buildConfig() {
 
 bool cameraInit() {
   camera_config_t config = buildConfig();
-  LOG("CAM", "iniciando: JPEG q=%d, xclk=%d Hz, fb_count=%d, PSRAM livre=%u bytes", JPEG_QUALITY,
-      XCLK_HZ, (int)config.fb_count, (unsigned)ESP.getFreePsram());
+  LOG("CAM", "iniciando: JPEG q=%d, xclk=%d Hz, 1 buffer (captura so com buffer livre), PSRAM livre=%u bytes",
+      JPEG_QUALITY, XCLK_HZ, (unsigned)ESP.getFreePsram());
 
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {

@@ -2,9 +2,10 @@
 #include <ESPAsyncWebServer.h>
 
 // Vídeo da câmera por WebSocket binário (/wsv): cada mensagem é um quadro JPEG completo.
-// Uma task no núcleo 1 captura e envia; só roda enquanto houver algum cliente conectado.
-// A fila de cada cliente usa o padrão da biblioteca (32 mensagens). Se a fila encher, ou se a
-// memória livre ficar abaixo do mínimo, o quadro é descartado em vez de enfileirado.
+// Uma task no núcleo 1 alterna capturar e transmitir (a câmera fica parada enquanto o quadro sai); só
+// roda enquanto houver algum cliente conectado.
+// Sem buffer: a fila de cada cliente tem 1 mensagem (WS_MAX_QUEUED_MESSAGES=1). Se o quadro anterior
+// ainda não foi entregue, o novo é descartado em vez de enfileirado: perdeu, perdeu.
 namespace video_ws {
 
 void begin(AsyncWebServer &server);  // registra /wsv e inicia a task de captura

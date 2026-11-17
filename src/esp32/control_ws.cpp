@@ -13,13 +13,18 @@ void onConnect(AsyncWebSocketClient *client) {
   LOG("WS", "cliente #%u conectou de %s (total: %u)", (unsigned)client->id(),
       client->remoteIP().toString().c_str(), (unsigned)socket.count());
 
-  char info[48];
-  reset_info::format(info, sizeof(info));
+  // Uma única mensagem, uma linha por aviso ("R,..." e, se já conhecido, "U,..."): a fila do
+  // WebSocket tem 1 posição e descartaria uma segunda mensagem enviada em seguida.
+  char info[100];
+  reset_info::format(info, 48);
+  const char *uno = robot_link::lastUnoReset();
+  if (uno[0]) {
+    size_t n = strlen(info);
+    snprintf(info + n, sizeof(info) - n, "\n%s", uno);
+  }
   client->text(info);
   LOG("WS", "TX para #%u: %s", (unsigned)client->id(), info);
 
-  const char *uno = robot_link::lastUnoReset();
-  if (uno[0]) client->text(uno);
   robot_link::requestResetInfo();
 }
 

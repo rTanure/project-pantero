@@ -6,9 +6,9 @@ namespace video_ws {
 namespace {
 
 constexpr int VIDEO_CORE = 1;                // núcleo 0 fica com o Wi-Fi, a pilha TCP/IP e o driver da câmera
-constexpr size_t MIN_FREE_HEAP = 40 * 1024;  // abaixo disso o quadro é descartado (evita falta de memória)
 constexpr unsigned long STATS_MS = 5000;
 constexpr unsigned long FPS_WINDOW_MS = 2000;
+constexpr unsigned long SEND_WAIT_MAX_MS = 100;  // cliente mais lento que isso: o quadro segue sem esperar
 
 volatile float currentFps = 0;
 
@@ -23,15 +23,31 @@ void onEvent(AsyncWebSocket *, AsyncWebSocketClient *client, AwsEventType type, 
   }
 }
 
-// O quadro só é enfileirado se a fila de todos os clientes tiver espaço e houver memória livre
-bool canSend() { return socket.availableForWriteAll() && ESP.getFreeHeap() > MIN_FREE_HEAP; }
+// Sem buffer: a fila tem 1 posição (WS_MAX_QUEUED_MESSAGES=1), então um quadro só entra se o
+// anterior já foi entregue a todos os clientes. Senão é descartado.
+bool canSend() { return socket.availableForWriteAll(); }
 
+// Espera a fila esvaziar (quadro entregue à pilha TCP). Retorna false se o cliente demorar demais.
+bool waitDelivered() {
+  unsigned long start = millis();
+  while (!canSend()) {
+    if (millis() - start > SEND_WAIT_MAX_MS) return false;
+    vTaskDelay(1);
+  }
+  return true;
+}
+
+// Alterna captura e transmissão, sem sobreposição:
+//   capturar -> transmitir -> esperar a entrega (com o buffer retido: a câmera fica parada) -> devolver
+// Quadro que não couber na fila, ou cliente lento demais: perdeu, perdeu.
 void captureTask(void *) {
   unsigned long sent = 0, dropped = 0, statsAt = millis();
   unsigned long windowSent = 0, windowAt = millis();
+  bool wasIdle = true;
   for (;;) {
     if (socket.count() == 0) {  // ninguém assistindo: não gasta CPU
       currentFps = 0;
+      wasIdle = true;
       vTaskDelay(pdMS_TO_TICKS(50));
       continue;
     }
@@ -42,14 +58,21 @@ void captureTask(void *) {
       vTaskDelay(pdMS_TO_TICKS(20));
       continue;
     }
+    if (wasIdle) {  // o buffer ficou parado enquanto ninguém assistia: o primeiro quadro é velho
+      wasIdle = false;
+      esp_camera_fb_return(fb);
+      continue;
+    }
+
     if (canSend()) {
-      socket.binaryAll(fb->buf, fb->len);
+      socket.binaryAll(fb->buf, fb->len);  // copia o quadro para a fila do WebSocket
       sent++;
       windowSent++;
+      waitDelivered();                     // câmera parada até o quadro sair
     } else {
       dropped++;
     }
-    esp_camera_fb_return(fb);
+    esp_camera_fb_return(fb);              // agora a câmera pode capturar o próximo
 
     if (millis() - windowAt >= FPS_WINDOW_MS) {
       currentFps = windowSent * 1000.0f / (millis() - windowAt);

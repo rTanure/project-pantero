@@ -60,7 +60,8 @@ export function useRobot() {
         log.info('WS', 'conectado')
         setConnected(true)
       }
-      ws.onmessage = (e) => handleResetMessage(e.data)
+      // uma mensagem pode trazer vários avisos, um por linha
+      ws.onmessage = (e) => String(e.data).split('\n').forEach(handleResetMessage)
       ws.onclose = (e) => {
         log.warn('WS', `fechado (code=${e.code}, motivo="${e.reason}", limpo=${e.wasClean})`)
         setConnected(false)
