@@ -1,4 +1,5 @@
 #pragma once
+#include <stddef.h>
 
 // Enlace serial com o Arduino Uno (que controla motores e Quick Charge).
 // Protocolo, uma linha por comando terminada em '\n':
@@ -20,5 +21,11 @@ void requestResetInfo();
 
 // Último "U,..." recebido do Uno; vazio se ainda não houve nenhum
 const char *lastUnoReset();
+
+// Estado para o display
+bool unoAlive();             // o Uno respondeu recentemente (o ESP32 pergunta a cada UNO_PING_MS)
+int lastX();                 // último comando de movimento enviado (-100..100)
+int lastY();
+void unoResetName(char *out, size_t size);  // motivo do último reset do Uno ("" se desconhecido)
 
 }  // namespace robot_link

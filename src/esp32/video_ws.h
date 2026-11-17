@@ -10,5 +10,6 @@ namespace video_ws {
 void begin(AsyncWebServer &server);  // registra /wsv e inicia a task de captura
 void cleanup();                      // chamar no loop(): remove clientes desconectados
 size_t clients();
+float fps();  // quadros por segundo enviados (média dos últimos ~2 s; 0 sem clientes)
 
 }  // namespace video_ws

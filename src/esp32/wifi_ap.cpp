@@ -46,4 +46,10 @@ void rampTxPower() {
 
 int stations() { return WiFi.softAPgetStationNum(); }
 
+float txPowerDbm() {
+  int8_t power = 0;
+  esp_wifi_get_max_tx_power(&power);
+  return power * 0.25f;
+}
+
 }  // namespace wifi_ap

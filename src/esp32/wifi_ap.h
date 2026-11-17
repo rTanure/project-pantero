@@ -8,6 +8,7 @@ namespace wifi_ap {
 
 void begin();
 void rampTxPower();
-int stations();  // dispositivos conectados ao AP
+int stations();      // dispositivos conectados ao AP
+float txPowerDbm();  // potência máxima de TX aceita pelo driver
 
 }  // namespace wifi_ap

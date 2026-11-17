@@ -8,6 +8,9 @@ namespace {
 constexpr int VIDEO_CORE = 1;                // núcleo 0 fica com o Wi-Fi, a pilha TCP/IP e o driver da câmera
 constexpr size_t MIN_FREE_HEAP = 40 * 1024;  // abaixo disso o quadro é descartado (evita falta de memória)
 constexpr unsigned long STATS_MS = 5000;
+constexpr unsigned long FPS_WINDOW_MS = 2000;
+
+volatile float currentFps = 0;
 
 AsyncWebSocket socket("/wsv");
 
@@ -25,8 +28,10 @@ bool canSend() { return socket.availableForWriteAll() && ESP.getFreeHeap() > MIN
 
 void captureTask(void *) {
   unsigned long sent = 0, dropped = 0, statsAt = millis();
+  unsigned long windowSent = 0, windowAt = millis();
   for (;;) {
     if (socket.count() == 0) {  // ninguém assistindo: não gasta CPU
+      currentFps = 0;
       vTaskDelay(pdMS_TO_TICKS(50));
       continue;
     }
@@ -40,11 +45,17 @@ void captureTask(void *) {
     if (canSend()) {
       socket.binaryAll(fb->buf, fb->len);
       sent++;
+      windowSent++;
     } else {
       dropped++;
     }
     esp_camera_fb_return(fb);
 
+    if (millis() - windowAt >= FPS_WINDOW_MS) {
+      currentFps = windowSent * 1000.0f / (millis() - windowAt);
+      windowSent = 0;
+      windowAt = millis();
+    }
     if (millis() - statsAt >= STATS_MS) {
       LOG("VIDEO", "%.1f fps enviados, %lu descartados, heap livre %u",
           sent * 1000.0 / (millis() - statsAt), dropped, (unsigned)ESP.getFreeHeap());
@@ -66,5 +77,7 @@ void begin(AsyncWebServer &server) {
 void cleanup() { socket.cleanupClients(); }
 
 size_t clients() { return socket.count(); }
+
+float fps() { return currentFps; }
 
 }  // namespace video_ws

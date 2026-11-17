@@ -3,6 +3,7 @@
 //   Wi-Fi (AP "Pantero") ── web_server  serve o app React (LittleFS)
 //                        ├─ control_ws  /ws   comandos do app -> robot_link -> Arduino Uno (UART)
 //                        └─ video_ws    /wsv  quadros JPEG da câmera -> app
+// display: painel OLED com o status do robô (I2C, pinos 32/33)
 //
 // Núcleo 0: Wi-Fi, pilha TCP/IP, driver da câmera e servidor web. Núcleo 1: captura e envio do vídeo.
 #include <Arduino.h>
@@ -10,6 +11,7 @@
 #include "camera.h"
 #include "config.h"
 #include "control_ws.h"
+#include "display.h"
 #include "log.h"
 #include "reset_info.h"
 #include "robot_link.h"
@@ -33,6 +35,7 @@ void setup() {
   Serial.begin(115200);
   delay(POWER_SETTLE_MS);  // deixa a alimentação estabilizar antes de ligar qualquer carga
   logBootInfo();
+  display::begin();
 
   web_server::mountFilesystem();
   robot_link::begin(onUnoReset);
@@ -41,6 +44,7 @@ void setup() {
   wifi_ap::begin();
   delay(POWER_STEP_MS);
   bool cameraOk = cameraInit();
+  display::setCameraOk(cameraOk);
   if (!cameraOk) LOG("BOOT", "camera INDISPONIVEL: o video nao sera iniciado");
   delay(POWER_STEP_MS);
   wifi_ap::rampTxPower();
@@ -68,5 +72,6 @@ void loop() {
   robot_link::poll();
   control_ws::cleanup();
   video_ws::cleanup();
+  display::update();
   heartbeat();
 }
